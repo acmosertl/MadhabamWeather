@@ -1,0 +1,119 @@
+<!DOCTYPE html>
+<html lang="bn">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>আজকের আবহাওয়া | Madhabam Weather</title>
+<style>
+  body {
+    font-family: 'Noto Sans Bengali', sans-serif;
+    margin: 0;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    height: 100vh;
+    background: linear-gradient(to bottom, #2b68b8, #b8e0ff);
+    transition: background 1s ease;
+  }
+  .card {
+    background: rgba(0,0,0,0.18);
+    color: #fff;
+    text-align: center;
+    border-radius: 18px;
+    padding: 20px;
+    width: 340px;
+    box-shadow: 0 4px 15px rgba(0,0,0,0.4);
+    backdrop-filter: blur(8px);
+  }
+  .title { font-size: 22px; font-weight: 700; margin: 5px 0; }
+  .loc { font-size: 16px; margin-bottom: 5px; }
+  .temp { font-size: 58px; font-weight: 800; margin: 8px 0; }
+  .ico { font-size: 48px; text-shadow: 0 0 6px rgba(255,255,255,0.7); }
+  .txt { font-size: 17px; line-height: 1.4; margin: 5px 0; }
+  .extra { font-size: 15px; margin-top: 8px; }
+  .forecast {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(90px, 1fr));
+    gap: 8px; margin-top: 12px;
+  }
+  .day {
+    background: rgba(255,255,255,0.18);
+    border-radius: 12px;
+    padding: 10px 6px;
+    box-shadow: 0 2px 6px rgba(0,0,0,0.25);
+  }
+  .day .ico { font-size: 28px; }
+  .small { font-size: 14px; }
+</style>
+</head>
+<body>
+<div class="card" id="weatherCard">
+  <div class="title">আজকের আবহাওয়া</div>
+  <div class="loc" id="loc">অবস্থান নির্ণয় হচ্ছে...</div>
+  <div class="temp" id="temp">--°C</div>
+  <div class="ico" id="ico">☀️</div>
+  <div class="txt" id="now">এখন<br>--</div>
+  <div class="extra" id="extra">--</div>
+  <div class="forecast" id="forecast">৭ দিনের পূর্বাভাস লোড হচ্ছে...</div>
+</div>
+
+<script>
+(async function(){
+  const locEl=document.getElementById('loc'),
+        tempEl=document.getElementById('temp'),
+        icoEl=document.getElementById('ico'),
+        nowEl=document.getElementById('now'),
+        exEl=document.getElementById('extra'),
+        fcEl=document.getElementById('forecast'),
+        card=document.getElementById('weatherCard');
+  
+  const icons={0:"☀️",1:"🌤️",2:"⛅",3:"☁️",45:"🌫️",61:"🌧️",63:"🌦️",65:"🌧️",95:"⛈️",99:"🌩️"};
+  const desc={0:"আকাশ পরিষ্কার",1:"আংশিক মেঘলা",2:"মেঘাচ্ছন্ন",3:"পুরোপুরি মেঘলা",61:"বৃষ্টি",95:"বজ্রসহ বৃষ্টি",99:"ঝড়ো বৃষ্টি"};
+
+  async function getLocation(){
+    return new Promise((res)=>{
+      if(navigator.geolocation){
+        navigator.geolocation.getCurrentPosition(
+          pos=>res({lat:pos.coords.latitude,lon:pos.coords.longitude,via:'gps'}),
+          async ()=>{res(await ipFallback());},
+          {timeout:6000}
+        );
+      }else res(ipFallback());
+    });
+  }
+
+  async function ipFallback(){
+    try{
+      const r=await fetch("https://ipapi.co/json/");const d=await r.json();
+      return {lat:d.latitude,lon:d.longitude,city:d.city||"Unknown",via:"ip"};
+    }catch{return {lat:22.57,lon:88.36,city:"Kolkata",via:"fallback"}}
+  }
+
+  async function run(){
+    const L=await getLocation();
+    locEl.textContent=L.city||"Kolkata";
+    const url=`https://api.open-meteo.com/v1/forecast?latitude=${L.lat}&longitude=${L.lon}&current=temperature_2m,relative_humidity_2m,precipitation,weathercode,wind_speed_10m&daily=weathercode,temperature_2m_max,temperature_2m_min,sunrise,sunset,precipitation_sum&timezone=auto`;
+    const r=await fetch(url);const d=await r.json();
+    const c=d.current;const D=d.daily;const code=c.weathercode;
+    
+    const now=new Date();const sunrise=new Date(D.sunrise[0]);const sunset=new Date(D.sunset[0]);
+    const night=(now<sunrise||now>sunset);
+    document.body.style.background = night ? 'linear-gradient(to bottom, #0d1b3a, #2c3a52)' : 'linear-gradient(to bottom, #2b68b8, #b8e0ff)';
+    
+    tempEl.textContent=c.temperature_2m+"°C";
+    icoEl.textContent=icons[code]||"☀️";
+    nowEl.innerHTML="এখন<br>"+(desc[code]||"স্বাভাবিক আবহাওয়া");
+    exEl.textContent=`আর্দ্রতা: ${c.relative_humidity_2m}% • বাতাস: ${c.wind_speed_10m} km/h • বৃষ্টি: ${c.precipitation} mm`;
+    
+    let html="";
+    for(let i=0;i<7;i++){
+      const day=i===0?"আজ":new Date(D.time[i]).toLocaleDateString('bn-BD',{weekday:'short'});
+      html+=`<div class="day"><div class="ico">${icons[D.weathercode[i]]||"☀️"}</div>${day}<br><span class="small">${D.temperature_2m_max[i].toFixed(1)}° / ${D.temperature_2m_min[i].toFixed(1)}°</span></div>`;
+    }
+    fcEl.innerHTML=html;
+  }
+  run();
+})();
+</script>
+</body>
+</html>
